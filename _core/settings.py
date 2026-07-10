@@ -13,27 +13,21 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 import dj_database_url
 from pathlib import Path
+from environ import Env
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-from environ import Env
 env = Env()
 env.read_env()
 
 ENVIRONMENT = env('ENVIRONMENT', default='development')
 
-POSTGRES_LOCALLY = False
-
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-# SECRET_KEY = env('SECRET_KEY', default="secret-key")
-
-# Security settings
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-your-dev-key')
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 if ENVIRONMENT == 'development':
@@ -42,8 +36,6 @@ else:
     DEBUG = False
 
 # Allow all hosts initially (update with your Railway domain later)
-# ALLOWED_HOSTS = ['*']
-# ALLOWED_HOSTS = ['v226.3kok.app', '3k-v226.up.railway.app']
 ALLOWED_HOSTS = [
     'v226.3kok.app',
     '3k-v226.up.railway.app',
@@ -55,18 +47,11 @@ ALLOWED_HOSTS = [
 
 CSRF_TRUSTED_ORIGINS = [
     'https://v226.3kok.app',
-    'https://3k-v226.up.railway.app',  # ✅ Fixed missing comma
+    'https://3k-v226.up.railway.app',
     'https://3k-v227.up.railway.app',
     'https://127.0.0.1',
     'https://localhost'
 ]
-
-# CSRF trusted origins
-# CSRF_TRUSTED_ORIGINS = ['https://*.railway.app']
-# CSRF_TRUSTED_ORIGINS = ['https://v226.3kok.app', 'https://3k-v226.up.railway.app']
-
-# ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
-# CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=["http://localhost", "http://127.0.0.1"])
 
 # Application definition
 
@@ -99,7 +84,6 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.facebook',
 ]
 
-
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
         'SCOPE': [
@@ -115,7 +99,6 @@ SOCIALACCOUNT_PROVIDERS = {
     },
 }
 
-
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -128,6 +111,7 @@ MIDDLEWARE = [
     'django_htmx.middleware.HtmxMiddleware',
     'allauth.account.middleware.AccountMiddleware',
 ]
+
 if DEBUG:
     MIDDLEWARE += ['django_browser_reload.middleware.BrowserReloadMiddleware']
 
@@ -141,7 +125,7 @@ ROOT_URLCONF = '_core.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [ BASE_DIR / 'templates' ],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -154,7 +138,6 @@ TEMPLATES = [
 ]
 
 ASGI_APPLICATION = '_core.asgi.application'
-
 
 if ENVIRONMENT == 'production':
     CHANNEL_LAYERS = {
@@ -172,22 +155,25 @@ else:
         }
     }
 
-
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-if ENVIRONMENT == 'production' or POSTGRES_LOCALLY: 
+# Use Neon PostgreSQL in production (via DATABASE_URL environment variable)
+if os.environ.get('DATABASE_URL'):
     DATABASES = {
-        'default': dj_database_url.config(default='sqlite:///db.sqlite3')
+        'default': dj_database_url.config(
+            conn_max_age=600,
+            ssl_require=True
+        )
     }
 else:
+    # Keep SQLite for local development
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -207,7 +193,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
@@ -219,8 +204,11 @@ USE_I18N = True
 
 USE_TZ = True
 
+# Static files (CSS, JavaScript, Images)
+# https://docs.djangoproject.com/en/5.2/howto/static-files/
+
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [ BASE_DIR / "static" ]
+STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
@@ -232,9 +220,8 @@ else:
 
 MEDIA_URL = '/media/'                         # URL prefix for media files
 
-# Ensure media directory exists
+# Ensure media directory exists in production
 if ENVIRONMENT == "production":
-    import os
     os.makedirs(MEDIA_ROOT, exist_ok=True)
 
 # Default primary key field type
@@ -244,6 +231,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'a_users.CustomUser'
 
+# Email configuration
 if ENVIRONMENT == 'development':
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 else:
@@ -255,14 +243,18 @@ else:
     EMAIL_USE_TLS = True
     DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
+# Authentication settings
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/' 
 ACCOUNT_LOGIN_METHODS = {'username', 'email'}
 ACCOUNT_FORMS = {'signup': 'a_users.forms.CustomSignupForm'}
 
+# AllAuth social login settings
 SOCIALACCOUNT_LOGIN_ON_GET = True 
 SOCIALACCOUNT_AUTO_SIGNUP = False
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
+SOCIALACCOUNT_ADAPTER = "a_users.adapters.socialSignupAdapter"
+
+# Security settings for Railway
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
-SOCIALACCOUNT_ADAPTER = "a_users.adapters.socialSignupAdapter"
